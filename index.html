@@ -1,0 +1,478 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#17243a">
+  <title>ポモドーロタイマー</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic", Meiryo, sans-serif;
+      font-synthesis: none;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      --background: #17243a;
+      --surface: #22324c;
+      --accent: #ffbd75;
+      --accent-text: #392510;
+      --soft: #ffe3c2;
+      --ring-fill: 100%;
+      min-height: 100svh;
+      margin: 0;
+      color: #f8fbff;
+      background: radial-gradient(circle at 50% 0%, #31466a 0, var(--background) 58%);
+      transition: background-color .4s ease;
+    }
+
+    body[data-mode="break"] {
+      --background: #123e43;
+      --surface: #1c5359;
+      --accent: #a9f0d0;
+      --accent-text: #153b32;
+      --soft: #d6f8e7;
+      background: radial-gradient(circle at 50% 0%, #28636a 0, var(--background) 58%);
+    }
+
+    button, input { font: inherit; }
+    button { cursor: pointer; }
+    button:disabled { cursor: not-allowed; opacity: .45; }
+    :focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
+
+    .app {
+      width: min(100%, 560px);
+      min-height: 100svh;
+      margin: auto;
+      padding: clamp(24px, 5vw, 40px) 20px 30px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .topline, .settings-title, .sound-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .brand {
+      margin: 0;
+      color: var(--soft);
+      font-size: .82rem;
+      font-weight: 800;
+      letter-spacing: .16em;
+    }
+
+    .count {
+      margin: 0;
+      padding: 9px 14px;
+      border: 1px solid #ffffff35;
+      border-radius: 999px;
+      color: #e8f0fa;
+      font-size: .84rem;
+      white-space: nowrap;
+    }
+
+    .count strong { color: var(--accent); font-size: 1.08rem; }
+    h1 { margin: 8px 0 0; font-size: clamp(1.55rem, 5vw, 2.1rem); letter-spacing: -.03em; }
+    .lead { margin: 8px 0 0; color: #d4dfed; font-size: .95rem; line-height: 1.6; }
+
+    .timer-panel {
+      padding: 25px 22px 24px;
+      border: 1px solid #ffffff20;
+      border-radius: 30px;
+      background: var(--surface);
+      box-shadow: 0 18px 45px #07132430;
+      text-align: center;
+    }
+
+    .phase-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      margin: 0;
+      color: var(--soft);
+      font-size: 1.1rem;
+      font-weight: 800;
+    }
+
+    .phase-label::before {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--accent);
+      content: "";
+    }
+
+    .timer-ring {
+      width: min(71vw, 310px);
+      aspect-ratio: 1;
+      display: grid;
+      place-items: center;
+      margin: 24px auto 28px;
+      padding: 9px;
+      border-radius: 50%;
+      background: conic-gradient(from -90deg, var(--accent) 0 var(--ring-fill), #ffffff2b var(--ring-fill) 100%);
+    }
+
+    .timer-inner {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      background: var(--surface);
+    }
+
+    .time {
+      font-size: clamp(4rem, 17vw, 6.4rem);
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -.075em;
+      line-height: 1;
+      padding-right: .075em;
+    }
+
+    .timer-caption { margin: 12px 0 0; color: #cedae8; font-size: .9rem; }
+
+    .controls { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+    .control {
+      min-height: 54px;
+      padding: 10px 8px;
+      border: 1px solid #ffffff40;
+      border-radius: 15px;
+      background: #ffffff0d;
+      color: #f8fbff;
+      font-size: .98rem;
+      font-weight: 800;
+    }
+
+    .control.primary { border-color: var(--accent); background: var(--accent); color: var(--accent-text); }
+    .control:not(:disabled):hover { filter: brightness(1.1); }
+
+    .notice {
+      margin-top: 16px;
+      padding: 13px 15px;
+      border-radius: 13px;
+      background: #ffffff18;
+      color: #fff;
+      font-size: .9rem;
+      line-height: 1.5;
+      text-align: left;
+    }
+
+    .notice[hidden] { display: none; }
+
+    .settings {
+      padding: 23px 22px;
+      border: 1px solid #ffffff20;
+      border-radius: 24px;
+      background: #ffffff0e;
+    }
+
+    .settings h2 { margin: 0; font-size: 1.1rem; }
+    .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 18px; }
+    .field { display: flex; flex-direction: column; gap: 9px; color: #e4ecf5; font-size: .91rem; font-weight: 700; }
+    .input-wrap { position: relative; }
+    .field input {
+      width: 100%;
+      height: 54px;
+      padding: 0 43px 0 15px;
+      border: 1px solid #ffffff4a;
+      border-radius: 13px;
+      outline: none;
+      background: #ffffff13;
+      color: #fff;
+      font-size: 1.25rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .field input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px #ffffff25; }
+    .unit { position: absolute; right: 15px; top: 50%; transform: translateY(-50%); color: #d2dfeb; }
+    .setting-hint { margin: 12px 0 0; color: #c5d3e1; font-size: .8rem; line-height: 1.5; }
+    .separator { height: 1px; margin: 21px 0; background: #ffffff2d; }
+    .sound-row > div { display: flex; flex-direction: column; gap: 3px; }
+    .sound-label { font-size: .96rem; font-weight: 700; }
+    .sound-description { color: #c5d3e1; font-size: .78rem; }
+
+    .switch {
+      position: relative;
+      width: 52px;
+      height: 31px;
+      flex: none;
+    }
+
+    .switch input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+    .switch-track { display: block; width: 100%; height: 100%; border-radius: 999px; background: #8393a8; transition: background .2s; }
+    .switch-track::after {
+      position: absolute;
+      top: 4px;
+      left: 4px;
+      width: 23px;
+      height: 23px;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0 1px 3px #0004;
+      content: "";
+      transition: transform .2s;
+    }
+
+    .switch input:checked + .switch-track { background: var(--accent); }
+    .switch input:checked + .switch-track::after { transform: translateX(21px); }
+    .switch input:focus-visible + .switch-track { outline: 3px solid var(--accent); outline-offset: 4px; }
+
+    .test-button {
+      min-height: 40px;
+      margin-top: 16px;
+      padding: 8px 14px;
+      border: 1px solid #ffffff70;
+      border-radius: 11px;
+      background: transparent;
+      color: #fff;
+      font-size: .86rem;
+      font-weight: 700;
+    }
+
+    .test-button:not(:disabled):hover { background: #ffffff18; }
+
+    @media (max-width: 380px) {
+      .app { padding-inline: 14px; gap: 18px; }
+      .timer-panel, .settings { padding-inline: 16px; }
+      .controls { gap: 7px; }
+      .control { font-size: .9rem; }
+    }
+  </style>
+</head>
+<body data-mode="focus">
+  <main class="app">
+    <header>
+      <div class="topline">
+        <p class="brand">POMODORO TIMER</p>
+        <p class="count">完了した集中 <strong id="completed-count">0</strong> 回</p>
+      </div>
+      <h1>ポモドーロタイマー</h1>
+      <p class="lead">集中と休憩を、気持ちよく繰り返しましょう。</p>
+    </header>
+
+    <section class="timer-panel" aria-label="タイマー">
+      <p class="phase-label" id="phase-label">集中中</p>
+      <div class="timer-ring" id="timer-ring">
+        <div class="timer-inner">
+          <div class="time" id="time" role="timer" aria-live="off">25:00</div>
+          <p class="timer-caption" id="timer-caption">開始を押してください</p>
+        </div>
+      </div>
+      <div class="controls">
+        <button class="control primary" id="start-button" type="button">開始</button>
+        <button class="control" id="pause-button" type="button" disabled>一時停止</button>
+        <button class="control" id="reset-button" type="button">リセット</button>
+      </div>
+      <div class="notice" id="notice" role="status" aria-live="polite" hidden></div>
+    </section>
+
+    <section class="settings" aria-labelledby="settings-heading">
+      <div class="settings-title"><h2 id="settings-heading">時間の設定</h2></div>
+      <div class="settings-grid">
+        <label class="field" for="focus-minutes">集中時間
+          <span class="input-wrap"><input id="focus-minutes" type="number" inputmode="numeric" min="1" max="180" step="1" value="25"><span class="unit">分</span></span>
+        </label>
+        <label class="field" for="break-minutes">休憩時間
+          <span class="input-wrap"><input id="break-minutes" type="number" inputmode="numeric" min="1" max="180" step="1" value="5"><span class="unit">分</span></span>
+        </label>
+      </div>
+      <p class="setting-hint">1〜180分で設定できます。進行中の変更は次の区間から反映します。</p>
+      <div class="separator"></div>
+      <div class="sound-row">
+        <div><span class="sound-label" id="sound-label">お知らせ音</span><span class="sound-description">区切りの時間に短い音を鳴らします</span></div>
+        <label class="switch" aria-labelledby="sound-label">
+          <input id="sound-enabled" type="checkbox" role="switch" checked>
+          <span class="switch-track" aria-hidden="true"></span>
+        </label>
+      </div>
+      <button class="test-button" id="test-button" type="button">テスト音</button>
+    </section>
+  </main>
+
+  <script>
+    (() => {
+      "use strict";
+
+      const focusInput = document.getElementById("focus-minutes");
+      const breakInput = document.getElementById("break-minutes");
+      const soundEnabled = document.getElementById("sound-enabled");
+      const testButton = document.getElementById("test-button");
+      const startButton = document.getElementById("start-button");
+      const pauseButton = document.getElementById("pause-button");
+      const resetButton = document.getElementById("reset-button");
+      const time = document.getElementById("time");
+      const phaseLabel = document.getElementById("phase-label");
+      const timerCaption = document.getElementById("timer-caption");
+      const timerRing = document.getElementById("timer-ring");
+      const completedCount = document.getElementById("completed-count");
+      const notice = document.getElementById("notice");
+
+      let mode = "focus";
+      let running = false;
+      let hasStarted = false;
+      let completed = 0;
+      let currentDurationMs = 25 * 60 * 1000;
+      let remainingMs = currentDurationMs;
+      let deadline = 0;
+      let audioContext;
+
+      function normalizedMinutes(input) {
+        const number = Number(input.value);
+        const value = Number.isFinite(number) && input.value.trim() !== ""
+          ? Math.min(180, Math.max(1, Math.round(number)))
+          : Number(input.defaultValue);
+        input.value = String(value);
+        return value;
+      }
+
+      function durationFor(nextMode) {
+        return normalizedMinutes(nextMode === "focus" ? focusInput : breakInput) * 60 * 1000;
+      }
+
+      function showNotice(message) {
+        notice.textContent = message;
+        notice.hidden = false;
+      }
+
+      function clearNotice() {
+        notice.hidden = true;
+        notice.textContent = "";
+      }
+
+      function render() {
+        const seconds = Math.ceil(Math.max(0, remainingMs) / 1000);
+        time.textContent = `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+        document.body.dataset.mode = mode;
+        phaseLabel.textContent = mode === "focus" ? "集中中" : "休憩中";
+        timerCaption.textContent = running ? "残り時間" : hasStarted ? "一時停止中" : "開始を押してください";
+        timerRing.style.setProperty("--ring-fill", `${Math.max(0, Math.min(100, remainingMs / currentDurationMs * 100))}%`);
+        completedCount.textContent = String(completed);
+        startButton.disabled = running;
+        pauseButton.disabled = !running;
+        testButton.disabled = !soundEnabled.checked;
+      }
+
+      async function playBeep() {
+        if (!soundEnabled.checked) return;
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContextClass) throw new Error("このブラウザは音声再生に対応していません");
+        if (!audioContext) audioContext = new AudioContextClass();
+        if (audioContext.state === "suspended") await audioContext.resume();
+        const start = audioContext.currentTime;
+        const oscillator = audioContext.createOscillator();
+        const volume = audioContext.createGain();
+        oscillator.type = "sine";
+        oscillator.frequency.setValueAtTime(880, start);
+        for (let index = 0; index < 6; index += 1) {
+          const beepStart = start + index * 0.5;
+          volume.gain.setValueAtTime(0.0001, beepStart);
+          volume.gain.exponentialRampToValueAtTime(0.18, beepStart + 0.018);
+          volume.gain.exponentialRampToValueAtTime(0.0001, beepStart + 0.22);
+        }
+        oscillator.connect(volume);
+        volume.connect(audioContext.destination);
+        oscillator.start(start);
+        oscillator.stop(start + 3);
+      }
+
+      function tick() {
+        if (!running) return;
+        const now = Date.now();
+        let switched = false;
+        let lastFinishedMode = mode;
+
+        while (now >= deadline) {
+          lastFinishedMode = mode;
+          if (mode === "focus") completed += 1;
+          mode = mode === "focus" ? "break" : "focus";
+          currentDurationMs = durationFor(mode);
+          deadline += currentDurationMs;
+          switched = true;
+        }
+
+        remainingMs = Math.max(0, deadline - now);
+        if (switched) {
+          showNotice(lastFinishedMode === "focus"
+            ? "集中が完了しました。休憩を始めました。"
+            : "休憩が終わりました。集中を始めました。");
+          if (soundEnabled.checked) playBeep().catch(() => {
+            showNotice("時間になりました。音を再生できないため、画面でお知らせしています。");
+          });
+        }
+        render();
+      }
+
+      startButton.addEventListener("click", () => {
+        if (running) return;
+        if (!hasStarted) {
+          currentDurationMs = durationFor(mode);
+          remainingMs = currentDurationMs;
+        }
+        deadline = Date.now() + remainingMs;
+        running = true;
+        hasStarted = true;
+        clearNotice();
+        if (soundEnabled.checked) {
+          const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+          if (AudioContextClass) {
+            if (!audioContext) audioContext = new AudioContextClass();
+            if (audioContext.state === "suspended") audioContext.resume().catch(() => {});
+          }
+        }
+        render();
+      });
+
+      pauseButton.addEventListener("click", () => {
+        if (!running) return;
+        tick();
+        running = false;
+        render();
+      });
+
+      resetButton.addEventListener("click", () => {
+        running = false;
+        hasStarted = false;
+        mode = "focus";
+        completed = 0;
+        currentDurationMs = durationFor(mode);
+        remainingMs = currentDurationMs;
+        clearNotice();
+        render();
+      });
+
+      for (const input of [focusInput, breakInput]) {
+        input.addEventListener("change", () => {
+          normalizedMinutes(input);
+          if (!hasStarted) {
+            currentDurationMs = durationFor(mode);
+            remainingMs = currentDurationMs;
+          }
+          render();
+        });
+      }
+
+      soundEnabled.addEventListener("change", render);
+      testButton.addEventListener("click", () => {
+        playBeep().then(() => showNotice("テスト音を再生しました。")).catch(() => {
+          showNotice("このブラウザでは音を再生できませんでした。");
+        });
+      });
+
+      document.addEventListener("visibilitychange", tick);
+      window.setInterval(tick, 250);
+      render();
+    })();
+  </script>
+</body>
+</html>
